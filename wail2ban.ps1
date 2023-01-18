@@ -31,7 +31,7 @@ $DebugPreference = "continue"
 ################################################################################
 #  Constants
 
-$CHECK_WINDOW = 120  # We check the most recent X seconds of log.         Default: 120
+$CHECK_WINDOW = 300  # We check the most recent X seconds of log.         Default: 120
 $CHECK_COUNT  = 5    # Ban after this many failures in search period.     Default: 5
 $MAX_BANDURATION = 7776000 # 3 Months in seconds
 	
@@ -70,6 +70,10 @@ $OSVersion = invoke-expression "wmic os get Caption /value"
 if ($OSVersion -match "2008") { $BLOCK_TYPE = "NETSH" }
 if ($OSVersion -match "2012") { $BLOCK_TYPE = "NETSH" }
 if ($OSVersion -match "2016") { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "2019") { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "2022") { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "10")   { $BLOCK_TYPE = "NETSH" }
+if ($OSVersion -match "11")   { $BLOCK_TYPE = "NETSH" }
 
 #Grep configuration file 
 switch -regex -file $ConfigFile {
