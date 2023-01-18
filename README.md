@@ -7,6 +7,11 @@ wail2ban
 
 wail2ban is a windows port of the basic functionality of [fail2ban](http://www.fail2ban.org/), and combining elements of [ts_block](https://github.com/EvanAnderson/ts_block). 
 
+This fork has following changes:
+* Added support for Windows 10, 11, 2019 & 2022
+* Removed 3-day execution limit on scheduled task
+* Increased eventLog check period to 5 minutes
+
 
 overview
 --------
