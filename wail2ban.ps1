@@ -31,9 +31,10 @@ $DebugPreference = "continue"
 ################################################################################
 #  Constants
 
-$CHECK_WINDOW = 300  # We check the most recent X seconds of log.         Default: 120
+$CHECK_WINDOW = 1200  # We check the most recent X seconds of log.         Default: 120
 $CHECK_COUNT  = 5    # Ban after this many failures in search period.     Default: 5
 $MAX_BANDURATION = 7776000 # 3 Months in seconds
+$LoopTimeout = 21600 # 6 hours in seconds
 	
 ################################################################################
 #  Files
@@ -102,6 +103,13 @@ switch -regex -file $ConfigFile {
 
 #We also want to whitelist this machine's NICs.
 $SelfList = (Get-NetIPAddress -AddressFamily IPv4).IPAddress
+
+#Creates friendly readable version of loop timeout
+Switch -Regex ($LoopTimeout) {
+    '\d{1,2}' {$LoopTimeoutH = ($LoopTimeout).ToString() + " Seconds"}
+    '\d{3,4}' {$LoopTimeoutH = ([math]::Round($LoopTimeout / 60, 1)).ToString() + " minutes"}
+    '\d{5,}' {$LoopTimeoutH = ([math]::Round($LoopTimeout / 60 / 60, 1)).ToString() + " Hours"}
+}
 
 ################################################################################
 # Functions
@@ -425,30 +433,34 @@ pickupBanDuration
 
 Register-WMIEvent -Query $query -sourceidentifier $SinkName
 do { #bedobedo
-	$new_event = wait-event -sourceidentifier $SinkName  
-	$TheEvent = $new_event.SourceeventArgs.NewEvent.TargetInstance
-	select-string $RegexIP -input $TheEvent.message -AllMatches | foreach { foreach ($a in $_.matches) {
-		$IP = $a.Value 		
-		if ($SelfList -match $IP) { debug "Whitelist of self-listed IPs! Do nothing. ($IP)" }
-		else {	
-			$RecordID = $TheEvent.RecordNumber
-			$EventDate = WMIDateStringToDateTime($TheEvent.TIMEGenerated)
-			$Entry.Add($RecordID, @($IP,$EventDate))
+	$new_event = wait-event -sourceidentifier $SinkName  -Timeout $LoopTimeout
+    If ($new_event -match "\S") {
+        $TheEvent = $new_event.SourceeventArgs.NewEvent.TargetInstance
+	    select-string $RegexIP -input $TheEvent.message -AllMatches | foreach { foreach ($a in $_.matches) {
+		    $IP = $a.Value 		
+		    if ($SelfList -match $IP) { debug "Whitelist of self-listed IPs! Do nothing. ($IP)" }
+		    else {	
+			    $RecordID = $TheEvent.RecordNumber
+			    $EventDate = WMIDateStringToDateTime($TheEvent.TIMEGenerated)
+			    $Entry.Add($RecordID, @($IP,$EventDate))
 
-			$IPCount = 0
-			foreach ($a in $Entry.Values) { if ($IP -eq $a[0]) { $IPCount++} }		
-			debug "$($TheEvent.LogFile) Log Event captured: ID $($RecordID), IP $IP, Event Code $($TheEvent.EventCode), Attempt #$($IPCount). "							
+			    $IPCount = 0
+			    foreach ($a in $Entry.Values) { if ($IP -eq $a[0]) { $IPCount++} }		
+			    debug "$($TheEvent.LogFile) Log Event captured: ID $($RecordID), IP $IP, Event Code $($TheEvent.EventCode), Attempt #$($IPCount). "							
 			
-			if ($IPCount -ge $CHECK_COUNT) { 
-				jail_lockup $IP		
-				clear_attempts $IP
-			} 
-			clear_attempts
-			unban_old_records
-		}
-	}
-	}
+			    if ($IPCount -ge $CHECK_COUNT) { 
+				    jail_lockup $IP		
+				    clear_attempts $IP
+			    } 
+			    clear_attempts
+			    unban_old_records
+		    }
+	    }
+	    }
 	
-	Remove-event  -sourceidentifier $SinkName  
+	Remove-event  -sourceidentifier $SinkName
+    } else {
+        actioned "No event detected in last $LoopTimeoutH"
+    }      
 	
 } while ($true)
