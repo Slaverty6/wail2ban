@@ -42,6 +42,7 @@ $LoopTimeout = 21600 # 6 hours in seconds
 $wail2banInstall = ""+(Get-Location)+"\"
 $wail2banScript  = $wail2banInstall+"wail2ban.ps1"
 $logFile         = $wail2banInstall+"wail2ban_log.log"
+$logFileArchive  = $wail2banInstall+"wail2ban_log1.log"
 $ConfigFile      = $wail2banInstall+"wail2ban_config.ini"
 $BannedIPLog	 = $wail2banInstall+"bannedIPLog.ini"
 
@@ -410,6 +411,13 @@ if ($args -match "-help") {
 ################################################################################
 #Setup for the loop
 
+If ((GCI $logFile).Length -gt 50*1024*1024) { 
+    If (Test-Path $logFileArchive) {
+        rm $logFileArchive
+    }
+    mv $logFile $logFileArchive
+}
+
 $SinkName = "LoginAttempt"
 $Entry = @{}
 $eventlist ="("
@@ -438,7 +446,7 @@ do { #bedobedo
         $TheEvent = $new_event.SourceeventArgs.NewEvent.TargetInstance
 	    select-string $RegexIP -input $TheEvent.message -AllMatches | foreach { foreach ($a in $_.matches) {
 		    $IP = $a.Value 		
-		    if ($SelfList -match $IP) { debug "Whitelist of self-listed IPs! Do nothing. ($IP)" }
+		    if ($SelfList -match $IP) { actioned "Whitelist of self-listed IPs! Do nothing. ($IP)" }
 		    else {	
 			    $RecordID = $TheEvent.RecordNumber
 			    $EventDate = WMIDateStringToDateTime($TheEvent.TIMEGenerated)
@@ -446,7 +454,7 @@ do { #bedobedo
 
 			    $IPCount = 0
 			    foreach ($a in $Entry.Values) { if ($IP -eq $a[0]) { $IPCount++} }		
-			    debug "$($TheEvent.LogFile) Log Event captured: ID $($RecordID), IP $IP, Event Code $($TheEvent.EventCode), Attempt #$($IPCount). "							
+			    actioned "$($TheEvent.LogFile) Log Event captured: ID $($RecordID), IP $IP, Event Code $($TheEvent.EventCode), Attempt #$($IPCount). "							
 			
 			    if ($IPCount -ge $CHECK_COUNT) { 
 				    jail_lockup $IP		
